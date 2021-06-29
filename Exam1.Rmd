@@ -1,0 +1,413 @@
+---
+title: | 
+  | \LARGE{\bf STAT 5214G: Advanced Methods of Regression}
+  | \vspace{0.2cm} \Large{\bf Exam 1} 
+  | \vspace{0.5cm} \large{\bf Electronically submit your solutions to Canvas by Sunday June 20. You	have	24	hours	to	complete	this	exam	from	the	moment	you	open	this	file.}
+  | \vspace{0.5cm} \large{You	are	not	allowed	to collaborate	with	anyone (except	for	me),	all	work	must	be	your	own.}
+  | \vspace{0.2cm} {You are required to submit your solutions using R Markdown. All students are required to submit their code.}
+author: "Krista Mosi"
+date: "6/15/2021"
+output: pdf_document
+number_sections: TRUE
+---
+
+
+```{r setup, include=FALSE}
+# This is the setup chunk
+#  Here you can set global options for the entire document
+
+library(knitr) # I recommend doing this
+library(pander)
+
+# Although you can call functions from a library using the following notation
+#  without loading the entire library.
+knitr::opts_chunk$set(echo = TRUE, 
+                      comment = NA, # Recommended
+                      fig.path = "./figures/",  # Store all figures here in relative path (make the folder first)
+                      fig.align = "center",
+                      fig.width = 5.5, # default figure width in inches
+                      fig.height = 5.5, # default figure height in inches
+                      message = FALSE, # Turn off load messages
+                      warning = FALSE # Turn off warnings
+                      )
+
+```
+***
+
+
+The Pokemon.csv dataset located on Canvas, contains information on the different Pokemon including the following variables:
+
+* Average Damange in a series of battles
+* Hit Points:  how much damage a Pokémon can receive
+* Attack: how much damage a Pokémon will cause to the opponent while in a physical move
+* Defense: how much damage a Pokémon will resist when hit by a physical move
+* Special Attack: how much damage a Pokémon can cause while using a special move.
+* Special Defense: how much damage a Pokémon will resist when hit by a special move.
+* Speed: the Pokémon with the higher Speed will be the one to attack first
+* Evasion: percentage value that determines the chance of an opposing Pokémon's move missing. 
+* Percent special move: the percent of times the pokemon used a special move
+* Percent carbos used: the percent of times carbos were used. Carbos increase speed.
+
+
+We are interested in building a model to predict the average damage. Your	 task	is	 to	 use	 all	 the	 tools	we	 have	learned	 so	 far	 to	 solve	 this	 problem.	 
+
+You	 should:
+
+* explore	 the	relationships	 the	candidate	predictors	have	with	 the	 response	 (AverageDamage)	
+* choose	a	model	
+* describe	it	
+* interpret	it
+* evaluate	it (diagnostics for residuals, leverage and influence, collinearity)
+
+**Document	your	process	and	provide	explanations	about	decisions	you	have	made	when	necessary.**
+
+
+```{r,echo = FALSE}
+
+library(readr)
+library(dplyr)
+
+Data <- read.csv("C:/Users/krist/Desktop/stat 5214/Pokemon.csv")
+
+
+```
+
+
+## Exploring relationships between the candidate predictors with the response, Average Damage
+
+```{r, echo = FALSE}
+library(reshape2)
+melt_dat=melt(Data,"AverageDamage")
+
+
+library(ggplot2)
+ggplot(melt_dat,aes(x = value, y = AverageDamage)) +
+geom_point() +
+facet_wrap(~ variable, scales = "free") +
+theme_bw()
+
+```
+From the Scatterplots we can look at the individual relationships between each of the predictors and our response, Average Damage. Based on the plots, we can see a few things:
+
+*   Hit Points, Attack, Defense, Special Attack, Special Defense, and Speed have very similar patterns. They all have a positive relationship with Average Damage. There is also a pattern of two separate positive diagonal groupings of points.
+
+*   Percent Carbos Used has a negative relationship with average damage, meaning when Percent Carbos Used gets higher, average defense gets lower. 
+
+*   Percent Special Move and Evasion both have a pattern of horizontal points, where as the variable goes up, average damage stays the around the same.
+
+*   Data Name and X are not being assessed because they are not candidate predictors
+
+
+## Finding the Correct model
+
+### The Full Model:
+
+```{r, echo = FALSE}
+
+
+Full_Model <- lm(AverageDamage ~ HitPoints + Attack + Defense + SpecialAttack+ SpecialDefense+ Speed+ Evasion + PercentSpecialMove + PercentCarbosUsed, data = Data)
+summary(Full_Model)
+```
+
+To begin, we will take a look at the full model. This is a good start to finding the best model. The model, is statistically significant, and has a high adjusted r-squared at .8394.  8 of the 10 variables are statistically significant.  In order to determine what the best model to use is (it could be this one), we will take this a step further by using forward and backward elimination, and stepwise regression procedure.
+
+
+#### Forward Elimination
+
+```{r, echo=FALSE}
+library(olsrr)
+Forward=ols_step_forward_p(Full_Model,penter=0.05)
+Forward
+```
+
+#### Backward Elimination
+
+```{r, echo= FALSE}
+Backward=ols_step_backward_aic(Full_Model)
+Backward
+```
+
+#### Stepwise Regression
+
+```{r, echo= FALSE}
+Stepwise=ols_step_both_aic(Full_Model)
+Stepwise
+```
+
+
+Comparing all three methods:
+
+*   All three methods gave us the same result. A model without the Evasion and Percent Special Move Variables, and 7 total variables.
+
+*   The winning model has an adjusted r-squared of .84085, a R-squared of .83944 an AIC of 8583.867
+
+
+### Test to see if average Damage is dependent on at least one of our predictors
+
+Hypothesis: 
+
+$$H_0 : \beta_1 = \beta_2 = \cdots = \beta_k = 0 $$
+
+$$H_A : \beta_j \ne 0 $$, for at least one j
+
+
+```{r, echo=FALSE}
+winning_model <- lm(AverageDamage ~ HitPoints + Attack + Defense + SpecialAttack+ SpecialDefense+ Speed + PercentCarbosUsed, data = Data)
+summary(winning_model)
+```
+Conclusion: With a p-value of 2.2e-16, which is statistically significant at the .05 level, we reject the null hypothesis and conclude that at least one of our explanatory variables contributes significantly to the model.
+
+```{r, echo = FALSE}
+CI=round(confint(winning_model),3)
+knitr::kable(CI)
+
+```
+
+## Residual Diagnostics Check
+
+Now that we have found the winning model, we will do a residual diagnostics check on it.
+
+```{r, echo = FALSE}
+library(car)
+library(MASS)
+
+Data$Fitted=winning_model$fitted.values 
+Data$Residuals=winning_model$residuals 
+Data$StudRes=studres(winning_model)
+```
+
+#### Normal Probability Plot
+
+
+```{r, echo=FALSE, fig.width= 5.5, fig.height= 5.5}
+ols_plot_resid_qq(winning_model)
+qqPlot(winning_model,ylab="Studentized Residuals",xlab="Theoretical Quantiles")
+```
+*   We can see through both the regular and studentized residuals that most points lie in the 45 degree line
+
+*   There are some deviations from the line in the tails of the distribution, however the deviations are small and may not present a major violation of the normality assumption.
+
+*   The studentized residual plots flagged two observations, 576 and 23
+
+
+#### Residuals vs. Predicted.
+```{r, echo=FALSE, fig.width= 5.5, fig.height= 5.5}
+ols_plot_resid_fit(winning_model)
+
+ggplot(data=Data,aes(x=Fitted,y=StudRes))+
+    geom_point()+
+    labs(y="Studentized Residuals",x="Fitted Values")+
+    geom_hline(yintercept=0,color='red')+theme_bw()
+```
+*   For these plots, we do not see any concerning patterns like a funnel or bow pattern. 
+
+*   The points are not very concentrated around 0, but they have an equal spread on both sides of 0.  As a result I do not think there is any pressing issues with the residuals vs predicted plots.
+
+
+#### Residuals vs. Regressors in the model
+
+```{r, echo=FALSE}
+ind=which(names(Data)%in%names(winning_model$coefficients))
+
+
+#Regular Residuals
+melt_RegResid=melt(Data[c(ind,14)],"Residuals")
+
+#Studentized Residuals
+melt_StudResid=melt(Data[c(ind,15)],"StudRes")
+
+#Regular Residual Plot
+ggplot(melt_RegResid,aes(x = value, y = Residuals)) +
+    geom_point() +
+    facet_wrap(~ variable, scales = "free") +
+    theme_bw()
+
+# student. plot
+ggplot(melt_StudResid,aes(x = value, y = StudRes)) +
+    geom_point() + theme_bw()+
+    facet_wrap(~ variable, scales = "free") +
+    labs(y="Studentized Residuals")
+
+```
+
+*   The plots between the studentized and the regular residuals are pretty identical. We can see some concerning non-horizontal bands in some of these plots.
+
+*   Hitpoints has vertical pattern.  Defense, Special Attack and Special Defense looks like it is an inversed funnel pattern which indicates that those variables increase as the variability decreases
+
+*   Percent Carbos Used and Attack have more ideal patterns, and don't show obvious problems, unlike the rest of the variables.
+
+#### Residuals vs. Regressors not in the model
+
+```{r,echo=FALSE, fig.width= 5.5, fig.height= 5.5}
+ggplot(Data,aes(x = Evasion, y = Residuals)) +
+    geom_point() + 
+    theme_bw()
+
+ggplot(Data,aes(x = Evasion, y = StudRes)) +
+    geom_point() + 
+    theme_bw()+labs(y="Studentized Residuals")
+
+```
+```{r, echo=FALSE, fig.width= 5.5, fig.height= 5.5}
+ggplot(Data,aes(x = PercentSpecialMove, y = Residuals)) +
+    geom_point() + 
+    theme_bw()
+
+ggplot(Data,aes(x = PercentSpecialMove, y = StudRes)) +
+    geom_point() + 
+    theme_bw()+labs(y="Studentized Residuals")
+```
+
+*   For both Evasion and Percent Special Move, the two variables not in the model, they do not have any concerning patterns.
+
+*   Overall, the model does not seem to pass this assumption, based off of the plots and the concerning patterns from most of the variables.
+
+
+#### Check for leverage points
+
+```{r, echo=FALSE}
+leverage=ols_leverage(winning_model)
+cutpoint=4*7/800
+which(leverage>=cutpoint)
+```
+
+```{r,echo=FALSE, fig.width= 5.5, fig.height= 5.5}
+ols_plot_resid_lev(winning_model)
+
+```
+
+*   We can see some leverage points, with the focus being on 218, 231, 122, 262, and 20
+
+
+### Cook’s D, DFBETAS and DFFITS.
+
+```{r, echo=FALSE, fig.width= 5.5, fig.height= 5.5}
+ols_plot_cooksd_chart(winning_model)
+
+ols_plot_dffits(winning_model)
+
+```
+
+*   Again we are seeing similar points in these two plots as we saw in the last one and the calculated leverage points. 
+
+*   218, 20, and 262 stand out the most.
+
+```{r, echo = FALSE, fig.width= 5.5, fig.height= 5.5}
+ols_plot_dfbetas(winning_model)
+```
+
+*    Though the DFbetas plots are harder to interpret because there are a lot of points flagged as influential, a few are repeated and seem to be the most influential( 218, 252, 20, 182)
+
+#### Removing Influential points and re-fitting model 
+
+
+
+I have decided, from the previous plots that points 218, 20, 262 are the most influential and I am going to remove them to see if this improves out model
+
+```{r, echo=FALSE}
+ind=c(218,252,20,182)
+DataReduced=Data[-ind,]
+
+model_reduced <- lm(AverageDamage ~ HitPoints + Attack + Defense + SpecialAttack+ SpecialDefense+ Speed + PercentCarbosUsed, data = DataReduced)
+
+s= summary(winning_model)
+
+sr = summary(model_reduced)
+```
+
+
+```{r, echo = FALSE}
+Tab = matrix(nrow=3,ncol=2)
+Tab[1,]=c(s$r.squared, sr$r.squared)
+Tab[2,]=c(s$adj.r.squared, sr$adj.r.squared)
+Tab[3,]=c(s$fstatistic[1],sr$fstatistic[1])
+Tab=round(Tab,3)
+Tab=as.data.frame(Tab)
+rownames(Tab)=c("R sq","R sq adj","F statistic")
+names(Tab)=c("Model","Reduced Model")
+knitr::kable(Tab)
+
+```
+*   When comparing the two models, we can see that all the values have increased for the reduced model, but not drastically.
+
+#### Winning Model 
+```{r, echo= FALSE}
+knitr::kable(s$coefficients)
+
+```
+#### Reduced Model
+```{r, echo= FALSE}
+knitr::kable(sr$coefficients)
+
+```
+
+*   We see no changes in significance, all parameter estimates continue being significant after deleting the influential observations.
+
+*   We see very minor changes in the regression coefficient estimates.
+
+*   This model seems robust to influential observations.
+
+## Checking for Correlation and Collinearity
+
+
+#### Correlations
+```{r, echo = FALSE, fig.width= 5.5, fig.height= 5.5}
+library(GGally)
+
+terms=names(winning_model$coefficients)[-1] 
+ind=which(names(Data)%in%terms) 
+
+ggpairs(Data,ind,
+upper = list(continuous = "smooth"),
+lower = list(continuous = "cor"),
+diag = list(continuous = "blankDiag")
+)
+```
+
+*   By looking at the scatterplot, we can see that there are not a lot of linear relationships. 
+
+*   By the rule of thumb, we do not want to see the correlation of any of these coefficients to be larger than .8 or .9 in absolute value. In this model, we do not have that problem. All of the correlation coefficients are below those absolute values.  In fact the largest correlation we see is .511, which is between Special Attack and Special Defense.  
+
+*   Based on this correlation matrix, it looks like we do not have any exactly or nearly linear relationships which is good for being able to estimate our regression coefficents for this model.
+
+#### VIFS to assess whether there are near linear relationships of three or more variables
+```{r, echo = FALSE}
+library(olsrr)
+
+knitr::kable(ols_vif_tol(winning_model))
+
+
+```
+*   The largest VIF among all predictors is 2.14.  This is well below the Rule of Thumb that states collinearity is severe if the largest VIF exceeds 10.  Speed, which has the highest VIF, has a Tolerance of .4667, this means that the other predictors explain 53% of the variability in speed.
+
+*   There are not near linear relationships of three or more variables for this model.
+
+
+#### Condition Indices to evaluate multi-collinearity
+
+
+```{r, echo=FALSE}
+library(kableExtra)
+
+knitr::kable(round(ols_eigen_cindex(winning_model),3),format='latex',booktabs=TRUE)%>%
+kable_styling(latex_options="HOLD_position")
+
+
+```
+
+*   We can see that there are no condition indices that can be denoted as large (>30)
+
+*   This means that we have no problems with any of the variance proportions associated, and that there is no evidence of multicollinearity in this model
+
+
+### Results
+
+*   We found this model through stepwise regression (forward and backward elimination came to the same conclusions)
+
+*   The model has good metrics. It is statistically significant with a p-value of 2.2e-16. It has a high adjusted r-squared of.8394, which means that model explains about 84% of the variability in average damage.
+
+*   The model passed the residual diagnostics check overall, but there was concern with the residuals vs regressors check.
+
+*   There are a few  observations that may be considered highly influential. We cannot eliminate them because we are not sure whether these are atypical or do not belong.  The model is robust enough to handle the influential observations.
+
+*   There is not a multicollinearity problem in this model.

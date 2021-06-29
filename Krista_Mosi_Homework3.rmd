@@ -1,0 +1,87 @@
+---
+title: | 
+  | \LARGE{\bf STAT 5214G: Advanced Methods of Regression}
+  | \vspace{0.2cm} \Large{\bf Homework 3} 
+  | \vspace{0.5cm} \large{\bf Electronically submit your solutions to Canvas by Sunday June 13th}
+  | \vspace{0.2cm} {If you are a {\bf DAAS student} you are required to submit your solutions using R Markdown. All students are required to submit their code.}
+author: "Krista Mosi"
+date: "6.13.2020"
+output: pdf_document
+number_sections: TRUE
+---
+
+***
+The winequalityred.csv dataset on Canvas contains information about the red wine variants of the Portuguese "Vinho Verde" wine. We are interested in determining the best model for alcohol content (y) from the available predictors: fixed acidity, volatile acidity,  citric acid, residual sugar, chorides, free sulfur dioxide, total sulfur dioxide, density, pH, and sulphates. 
+
+```{r,echo = FALSE}
+
+library(readr)
+library(dplyr)
+
+Data <- read.csv("C:/Users/krist/Desktop/stat 5214/winequalityred.csv")
+
+
+```
+
+1. **[5 pts]** Fit the winning model from Homework 1 and 2.
+
+```{r, echo = FALSE}
+winning_model <- lm(alcohol ~ density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = Data)
+
+summary(winning_model)
+```
+2. **[20 pts ]** Create a scatterplot matrix with correlations. Comment on what you observe. 
+
+```{r, echo = FALSE}
+library(GGally)
+
+terms=names(winning_model$coefficients)[-1] 
+ind=which(names(Data)%in%terms) 
+
+ggpairs(Data,ind,
+upper = list(continuous = "smooth"),
+lower = list(continuous = "cor"),
+diag = list(continuous = "blankDiag")
+)
+
+```
+
+*   By looking at the scatterplot, we can see that there are not a lot of linear relationships.  By the rule of thumb, we do not want to see the correlation of any of these coefficients to be larger than .8 or .9 in absolute value. In this model, we do not have that problem. All of the correlation coefficients are below those absolute values.  In fact the largest correlation we see is -.683, which is between pH and Sulphates.  Based on this correlation matrix, it looks like we do not have any exactly or nearly linear relationships which is good for being able to estimate our regression coefficents for this model.
+
+3. **[25 pts]** Use tolerance/VIF's to assess whether there are near linear relationships of three or more variables. Comment on what you observe. 
+
+```{r, echo = FALSE}
+library(olsrr)
+
+knitr::kable(ols_vif_tol(winning_model))
+
+
+```
+*   The largest VIF among all predictors is 5.4.  This is well below the Rule of Thumb that states collinearity is severe if the largest VIF exceeds 10.  There are not near linear relationships of three or more variables for this model.
+
+4. **[25 pts]** Use condition indices to evaluate whether there is multicollinearity in this model. 
+
+```{r, echo=FALSE}
+library(kableExtra)
+
+knitr::kable(round(ols_eigen_cindex(winning_model),3),format='latex',booktabs=TRUE)%>%
+kable_styling(latex_options="HOLD_position")
+
+
+```
+*   We can see two condition indices that are quite large, the last two rows that are 123.05 and 3599.66. They are both over our rule of thumb value that any condition index over 30 is labeled as high.  As a result we can conclude that there is at least one strong near-linear relationship in this data.
+
+*   The condition index of 123.05 is associated with one variable with high proportion of variability: pH (91%).  Since there are not more than two variables with high proportion of variability (>50%) associated with the single large condition of index, collinearity is not identified here.
+
+*   The condition index of 3599.66 is not associated with any variables with high proportion of variability.  No collinearity is identified here since no variables were associated with high proportion of variability for this large condition index.
+
+
+5. **[25 pts]** Based on all the information you have (homework 1 - homework 3), what can you conclude about this model?
+
+*   From the first homework, we found a strong model, with 9 statistically significant variables.  The adjusted R-squared value is pretty high, at .668 which is good, and the entire model is statistically significant. This is a good beginning for any model.
+
+*   Some problems came with the residual diagnostics check on the model.  The model did not indicate a good linear relationship, or normal distribution which was checked when examining the Residuals vs Fitted and the normal Q-Q plots respectively.  The model was also in violation of the constance variance assumption.  The model did have some outliers and leverage points, but it was robust to these influential points.
+
+* Finally, the model does not have a collinearilty problem, or any concerning exactly or nearly linear relationships.
+
+*   Overall, the model I believe is sufficient to use, but the diagnostics check is, however, the only concerning piece. The diagnostics check is not necessarily a stopping point, but it indicates that the model might not be the best way to understand the data.  There may be things that are missing from the model, such as important or influential variables that could play a role. There are other solutions that could help with the non -linear relationship of the model such as adding a quadratic term or a polynomial term to name a few.

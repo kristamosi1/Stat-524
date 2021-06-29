@@ -1,0 +1,249 @@
+---
+title: | 
+  | \LARGE{\bf STAT 5214G: Advanced Methods of Regression}
+  | \vspace{0.2cm} \Large{\bf Homework 2} 
+  | \vspace{0.5cm} \large{\bf Electronically submit your solutions to Canvas by Sunday June 6th}
+  | \vspace{0.2cm} {You are required to submit your solutions using R Markdown and submit your code.}
+author: "Krista Mosi"
+date: "6.5.2021"
+output: pdf_document
+number_sections: TRUE
+---
+
+```{r setup, include=FALSE}
+# This is the setup chunk
+#  Here you can set global options for the entire document
+
+library(knitr) # I recommend doing this
+library(pander)
+
+# Although you can call functions from a library using the following notation
+#  without loading the entire library.
+knitr::opts_chunk$set(echo = TRUE, 
+                      comment = NA, # Recommended
+                      fig.path = "./figures/",  # Store all figures here in relative path (make the folder first)
+                      fig.align = "center",
+                      fig.width = 6, # default figure width in inches
+                      fig.height = 6, # default figure height in inches
+                      message = FALSE, # Turn off load messages
+                      warning = FALSE # Turn off warnings
+                      )
+
+```
+***
+The winequalityred.csv dataset on Canvas contains information about the red wine variants of the Portuguese "Vinho Verde" wine. We are interested in determining the best model for alcohol content (y) from the available predictors: fixed acidity, volatile acidity,  citric acid, residual sugar, chorides, free sulfur dioxide, total sulfur dioxide, density, pH, and sulphates. 
+
+
+```{r,echo = FALSE}
+
+library(readr)
+library(dplyr)
+
+Data <- read.csv("C:/Users/krist/Desktop/stat 5214/winequalityred.csv")
+
+
+```
+
+
+1. **[5 pts]** Fit the winning model from Homework 1.
+
+```{r, echo = FALSE}
+winning_model <- lm(alcohol ~ density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = Data)
+
+summary(winning_model)
+```
+
+
+2. **[45 pts]** Do a thorough residual check. Remember to use both the regular and the studentized residuals. Note you are expected to comment on each of your plots. Your diagnostics check should include:
+   a.  **[10 pts]** Normal probability plot
+   
+```{r, echo = FALSE}
+library(car)
+library(olsrr)
+
+ols_plot_resid_qq(winning_model)
+
+qqPlot(winning_model)
+```
+   
+For the normal probability plot, we can see that for this model it is not perfectly on the 45 degree line. The plot has some skewed distribution on both tails which indicates that the distribution may not be normal. There are some outliers being highlighted (points 560 and 652) on the studentized residuals normal probability plot that may be of some concern.
+
+
+   b. **[10 pts]** Residuals vs. Predicted.
+   
+```{r, echo=FALSE}
+ols_plot_resid_fit(winning_model)
+
+
+# Studentized
+library(MASS)
+
+Data$StudRes=studres(winning_model) 
+Data$Fitted=winning_model$fitted.values 
+
+library(ggplot2)
+p=ggplot(data=Data,aes(x=Fitted,y=StudRes))+
+   geom_point()+
+   labs(y="Studentized Residuals",x="Fitted Values")+
+   geom_hline(yintercept=0,color='red')+theme_bw()
+print(p)
+```
+   
+For the residuals vs Fitted plots (both the studentized and regular residuals) we do not see the residuals contained in a perfect horizontal band like we want, but the spread of the points is even going up to 2 and down to -2. However the concentration of the points and the spread has a slight double bow pattern, which indicates nonconstance variance. This plot is a little harder to read but there might be model problems.
+   
+   c. **[15 pts]** Residuals vs. Regressors in the model
+   
+```{r, echo = FALSE}
+Data$Residuals= winning_model$residuals
+library(reshape2)
+
+
+ind=which(names(Data)%in%names(winning_model$coefficients))
+melt_RegResid=melt(Data[c(ind,14)],"Residuals")
+
+ggplot(melt_RegResid,aes(x = value, y = Residuals)) +
+      geom_point() +
+      facet_wrap(~ variable, scales = "free") +
+      theme_bw()
+
+```
+
+
+```{r, echo = FALSE}
+
+ind=which(names(Data)%in%names(winning_model$coefficients))
+melt_StudResid=melt(Data[c(ind,12)],"StudRes")
+
+ggplot(melt_StudResid,aes(x = value, y = StudRes)) +
+      geom_point() +
+      facet_wrap(~ variable, scales = "free") +
+      theme_bw()+
+      labs(y="Studentized Residuals")
+```
+The plots between the studentized and the regular residuals are pretty identical. We can see some concerning non-horizontal bands in some of these plots. Especially chlorides, residual sugars, sulphates and total sulfur dioxide which are skewed and concentrated to the left of the plot.  Density, fixed acidity, volatile acidity and citric acid have a more desirable pattern of being concentrated around a horizontal band. A lot of these plots do not pass the assumptions we want to see.
+   
+   d. **[10 pts]** Residuals vs. Regressors not in the model 
+```{r, echo= FALSE}
+ind=c(6)
+melt_RegResid=melt(Data[c(ind,14)],"Residuals")
+
+ggplot(melt_RegResid,aes(x = value, y = Residuals)) +
+      geom_point() +
+      facet_wrap(~ variable, scales = "free") +
+      theme_bw()
+```
+   
+```{r, echo= FALSE}
+ind=c(6)
+melt_StudResid=melt(Data[c(ind,12)],"StudRes")
+
+ggplot(melt_StudResid,aes(x = value, y = StudRes)) +
+      geom_point() +
+      facet_wrap(~ variable, scales = "free") +
+      theme_bw()+
+      labs(y="Studentized Residuals")
+```
+For the Studentized and Regular residuals vs regressors not in the model, we can see that it is just free sulfur dioxide we are examining because it is the only variable that did not make it into the model. Again the Studentized and Regular Residuals show us the same thing, that free sulfur dioxide is not on the horizontal band that we want to see. The points are skewed to the left of the plot. 
+
+
+Overall I do not think this model passed the diagnostics check based on the patterns of all of the plots that we examined indicated that the regression model might not be an adequate fit.
+
+3. **[50 pts]** Check for outliers, leverage and influential points in your model. Your diagnostics check should include:
+   a. **[10 pts]** Calculate leverage and identify leverage points.
+   
+```{r, echo = FALSE}
+
+library(olsrr)
+
+leverage=ols_leverage(winning_model)
+cutpoint=4*9/1599 #p=10, n=1599
+which(leverage>=cutpoint)
+
+
+ols_plot_resid_lev(winning_model)
+
+```
+   Here we can see the leverage points and that the threshold is .013. Unsuprsingly from our previous checks, there are a lot of leverage points for this model. There are a few points that are both outliers and leverage points. 
+   
+   b. **[15 pts]** Calculate Cook's D, DFBETAS and DFFITS.
+   
+```{r, echo=FALSE}
+ols_plot_cooksd_chart(winning_model)
+
+```
+
+We can see for the Cook's D plot, a lot of points are over the threshold of .003, and are therefor influential points. If we use the least conservative threshold of one, none of the points would be influential.  
+
+```{r, echo=FALSE}
+ols_plot_dfbetas(winning_model)
+
+```
+
+For the DFBetas plots, we can see again that for each variable, there were a lot of points that were outside of the thresholds. Especially for density, pH and fixed acidity.  There are a lot of points that are out of the threshold consistently. But since there are so many points, it is hard to pick a single point that is always outside of the threshold/ or that stands out.
+
+```{r, echo=FALSE}
+
+ols_plot_dffits(winning_model)
+```
+ 
+For the DFfits plot, we can see that there are a lot of points that are outside of the threshold.  A lot of these points were also highlighted in the DF betas plots such as 481, 652, 152 to just name a few.
+   
+
+   c. **[10 pts]**  Based on the results from a and b select the points that seem the most influential, remove them and refit your model.
+   
+I don't think there was enough consistency from a and b to select points that seem most influential. I did end up choosing 481, and the two outliers from earlier (560,652) that we saw to try and carry out the problem.
+
+
+```{r, echo=FALSE}
+DataReduced=Data[-c(481,652,560),]
+
+model_reduced <- lm(alcohol ~ density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = DataReduced)
+
+s <- summary(winning_model)
+sr <- summary(model_reduced)
+```
+
+
+   d. **[15 pts]** Compare both models in terms of MSE, R squared, Adjusted R squared, F statistic, regression coefficient estimates, and significance. 
+
+### F statistic
+```{r, echo=FALSE}
+s$fstatistic
+
+sr$fstatistic
+
+```
+The F statistic goes up, but it is not a dramatic change when the points are eliminated from the model.
+   
+### R squared
+
+```{r, echo=FALSE}
+
+s$r.squared
+
+sr$r.squared
+
+
+s$adj.r.squared
+
+sr$adj.r.squared
+```
+Both the Rsquared and the Adjusted Rsquared increase when eliminating observations 481, 560, and 652. 
+
+### T-tests
+
+```{r,echo=FALSE}
+
+
+library(knitr)
+
+knitr::kable(s$coefficients)
+
+knitr::kable(sr$coefficients)
+
+
+```
+We can see no changes in signs for the parameter estimates and no changes in significance after removing the observations 481, 560 and 652.
+
+After comparing these two models, we can see that the removing points chosen did not dramatically change the model and make it unacceptable. This model is not sensitive to a few observations. However, there were so many influential points overall in the model that may be effecting it.
+   

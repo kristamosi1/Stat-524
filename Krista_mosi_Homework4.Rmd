@@ -1,0 +1,315 @@
+---
+title: | 
+  | \LARGE{\bf STAT 5214G: Advanced Methods of Regression}
+  | \vspace{0.2cm} \Large{\bf Homework 4} 
+  | \vspace{0.5cm} \large{\bf Electronically submit your solutions to Canvas by Sunday June 27th}
+  | \vspace{0.2cm} {If you are a {\bf DAAS student} you are required to submit your solutions using R Markdown. All students are required to submit their code.}
+author: "Krista Mosi"
+date: "6.26.2021"
+output: pdf_document
+number_sections: TRUE
+---
+
+```{r setup, include=FALSE}
+# This is the setup chunk
+#  Here you can set global options for the entire document
+
+library(knitr) # I recommend doing this
+library(pander)
+
+# Although you can call functions from a library using the following notation
+#  without loading the entire library.
+knitr::opts_chunk$set(echo = TRUE, 
+                      comment = NA, # Recommended
+                      fig.path = "./figures/",  # Store all figures here in relative path (make the folder first)
+                      fig.align = "center",
+                      fig.width = 6, # default figure width in inches
+                      fig.height = 6, # default figure height in inches
+                      message = FALSE, # Turn off load messages
+                      warning = FALSE # Turn off warnings
+                      )
+
+```
+***
+
+The winequalityred.csv dataset on Canvas contains information about the red wine variants of the Portuguese "Vinho Verde" wine. We are interested in determining the best model for alcohol content (y) from the available predictors: fixed acidity, volatile acidity,  citric acid, residual sugar, chorides, free sulfur dioxide, total sulfur dioxide, density, pH, and sulphates. 
+
+
+```{r,echo = FALSE}
+
+library(readr)
+library(dplyr)
+
+Data <- read.csv("C:/Users/krist/Desktop/stat 5214/winequalityred.csv")
+
+
+```
+
+1. **[5 pts]** Fit the winning model from Homework 1 and 2.
+
+```{r, echo = FALSE}
+winning_model <- lm(alcohol ~ density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = Data)
+
+summary(winning_model)
+```
+2. **[5 pts]** Repeat the plots you consider are problematic from Homework 2. 
+```{r, echo = FALSE}
+library(car)
+library(olsrr)
+
+ols_plot_resid_qq(winning_model)
+
+qqPlot(winning_model)
+```
+
+```{r, echo = FALSE}
+library(ggplot2)
+library(reshape2)
+
+library(MASS)
+
+Data$Fitted=winning_model$fitted.values
+
+Data$Residuals=winning_model$residuals
+Data$StudRes=studres(winning_model)
+
+
+ols_plot_resid_fit(winning_model)
+
+ggplot(data=Data,aes(x=Fitted,y=StudRes))+geom_point()+labs(y="Studentized Residuals",x="Fitted Values")+geom_hline(yintercept=0,color='red')+theme_bw()
+```
+   
+```{r, echo = FALSE}
+Data$Residuals= winning_model$residuals
+library(reshape2)
+
+
+ind=which(names(Data)%in%names(winning_model$coefficients))
+melt_RegResid=melt(Data[c(ind,13)],"Residuals")
+
+ggplot(melt_RegResid,aes(x = value, y = Residuals)) +
+      geom_point() +
+      facet_wrap(~ variable, scales = "free") +
+      theme_bw()
+
+```
+
+3. **[15 pts]** Of the problems you found in part 2. Which do you think you can correct using transformations? **Explain.** 
+
+I think that the Residual vs Fitted plot can be helped with transformation to fix the funnel shape it currently has. There is a tighter dispersion for some of the smaller values and transformation could help with that problem.  While the q-q plot is not super concerning, if we could improve some of the deviations from the line in the tails of the distribution, we should.
+
+For the Residuals vs Regressors,currently the model seems to be in violation of the nonconstance variance assumption.  Transforming the data could help correct this problem.
+
+
+4. **[75 pts]** Use transformations to correct (to the extent possible), the problems you identified in part 3. Some useful questions t to ask yourself are:
+     i. **[10 pts]** Do I need to transform the response? **Why? Why not?**
+
+To figure out if I need to transform the response, I looked at if some of the diagnostics plots were concerning, which as we showed above, some were (the q-qplot and the Fitted vs Studentized Residuals).
+
+Then I am going to test this by transforming Y with the sqrt method, log transformation, and box-cox transformation. If any of these transformations improve the q-q plot and the residuals vs fitted values plot, then we do need the response to be transformed going forward.  
+  
+     
+     ii. **[10 pts]** Do I need to transform any of the predictors? **Why? Why not?**
+To figure out if I need to transform the predictors, I looked at if some of the diagnostics plots were concerning, which as we showed above, some were (Residuals vs Regressors plot).
+
+Once I find a winning model for transforming the response (if there is one), then I will evaluate the Residuals vs Regressors plots to see which predictors are showing clear signs of nonconstance variance. I will then take the transformation(same method that we use for the response) of those predictors, and evaluate.   
+  
+     iii. **[50 pts]** Use the answers to the above questions to use transformations to solve your model problems. Document your rationale and process.
+     
+## Square Root transformation of Y
+```{r, echo FALSE}
+ModelTran1=lm(sqrt(alcohol) ~ density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = Data)
+summary(ModelTran1)
+```
+
+### Residual Diagnostics
+
+```{r, echo = FALSE}
+qqPlot(ModelTran1, ylab="Studentized Residuals",
+xlab="Theoretical Quantiles",main="Square Root Transformation")
+
+ols_plot_resid_fit(ModelTran1)
+
+
+Data$StudResSqrt=studres(ModelTran1) 
+Data$FittedSqrt=ModelTran1$fitted.values 
+p=ggplot(data=Data,aes(x=FittedSqrt,y=StudResSqrt))+geom_point()+
+labs(y="Studentized Residuals",x="Fitted Values",title="Square Root Transformation")+
+geom_hline(yintercept=0,color='red')+theme_bw()
+print(p)
+```
+
+     
+## Log transformation
+```{r, echo=FALSE}
+ModelTran2=lm(log(alcohol) ~ density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = Data)
+summary(ModelTran2)
+```
+### Residual Diagnostics 
+```{r, echo = FALSE}
+
+qqPlot(ModelTran2, ylab="Studentized Residuals",xlab="Theoretical Quantiles",main="Log Transformation")
+
+```
+
+```{r, echo = FALSE}
+ols_plot_resid_fit(ModelTran2)
+
+
+Data$StudResLog=studres(ModelTran2) #Extract studentized residuals
+Data$FittedLog=ModelTran2$fitted.values #Extract fitted values
+p=ggplot(data=Data,aes(x=FittedLog,y=StudResLog))+geom_point()+
+labs(y="Studentized Residuals",x="Fitted Values",title="Log Transformation")+
+geom_hline(yintercept=0,color='red')+theme_bw()
+print(p)
+
+```
+
+## Box Cox Transformation
+
+```{r, echo = FALSE}
+library(MASS)
+BC=boxcox(winning_model)
+lambda=BC$x[which.max(BC$y)]
+lambda
+
+```
+```{r, echo =FALSE}
+Data$BoxCoxY= (Data$alcohol^lambda-1)/lambda
+
+ModelTran3=lm(BoxCoxY~density+ fixed.acidity + pH + residual.sugar + sulphates + citric.acid + total.sulfur.dioxide + chlorides + volatile.acidity, data = Data)
+summary(ModelTran3)
+```
+### Residual Diagnostics 
+
+
+```{r, echo=FALSE}
+qqPlot(ModelTran3, ylab="Studentized Residuals",xlab="Theoretical Quantiles",
+main="Box-Cox Transformation")
+
+
+
+ols_plot_resid_fit(ModelTran3)
+
+
+Data$StudResBoxCox=studres(ModelTran3) #Extract studentized residuals
+Data$FittedBoxCox=ModelTran3$fitted.values #Extract fitted values
+p=ggplot(data=Data,aes(x=FittedBoxCox,y=StudResBoxCox))+geom_point()+
+labs(y="Studentized Residuals",x="Fitted Values",title="Box-Cox Transformation")+
+geom_hline(yintercept=0,color='red')+theme_bw()
+print(p)
+```
+### Winning Model
+
+Though there was not a drastic change in the plots, the Residuals vs Fitted values of the Box Cox transformation and Log transformation seemed to help. The points are more evenly spread from zero, especially on the left half of the grapg, which makes the plot less of a funnel shape. There was no real difference to the q-q plots of any of the methods, but as mentioned earlier, the plot was not super concerning.
+
+With this said, for interpretability, I will use the log transformation, and continue to evaluate the model with the response log transformed.
+
+
+### Residuals vs Regressors in the model
+
+```{r, echo = FALSE}
+Data$ResidualsLog=ModelTran2$residuals
+
+ind=which(names(Data)%in%names(ModelTran2$coefficients))
+melt_RegResid=melt(Data[c(ind,22)],"ResidualsLog")
+ggplot(melt_RegResid,aes(x = value, y = ResidualsLog)) +
+geom_point() +
+facet_wrap(~ variable, scales = "free") +
+theme_bw()
+```
+```{r, echo=FALSE}
+ind=which(names(Data)%in%names(ModelTran2$coefficients))
+ind2=which(names(Data)=="StudResLog")
+```
+
+
+```{r, echo=FALSE}
+melt_StudResid=melt(Data[c(ind,ind2)],"StudResLog")
+ggplot(melt_StudResid,aes(x = value, y = StudResLog)) +
+geom_point() +
+facet_wrap(~ variable, scales = "free") +
+theme_bw()+
+labs(y="Studentized Residuals")
+```
+Residual sugar, chlorides, sulphates and total sulfur dioxide are clearly showing signs of non constance variance. I will log transform all of them.
+
+
+```{r,echo=FALSE}
+Data$Logresidual.sugar=log(Data$residual.sugar)
+
+Data$Logchlorides=log(Data$chlorides)
+
+Data$Logtotal.sulfur.dioxide=log(Data$total.sulfur.dioxide)
+
+Data$Logsulphates=log(Data$sulphates)
+
+```
+
+
+```{r,echo=FALSE}
+ModelTran4=lm(log(alcohol) ~ density+ fixed.acidity + pH + Logresidual.sugar + Logsulphates + citric.acid + Logtotal.sulfur.dioxide + Logchlorides + volatile.acidity, data = Data)
+```
+
+
+### Residual Diagnostics
+
+```{r, echo =FALSE}
+qqPlot(ModelTran4,ylab="Studentized Residuals",xlab="Theoretical Quantiles")
+
+ols_plot_resid_fit(ModelTran4)
+
+
+Data$StudResTran4=studres(ModelTran4) 
+Data$FittedTran4=ModelTran4$fitted.values
+
+p=ggplot(data=Data,aes(x=FittedTran4,y=StudResTran4))+geom_point()+
+labs(y="Studentized Residuals",x="Fitted Values",title=" Log Transformation y Log Transformation X")+
+geom_hline(yintercept=0,color='red')+theme_bw()
+print(p)
+```
+
+
+
+```{r, echo = FALSE}
+Data$ResidualsTran4=ModelTran4$residuals
+ind=which(names(Data)%in%names(ModelTran4$coefficients))
+ind2=which(names(Data)=="ResidualsTran4")
+melt_RegResid=melt(Data[c(ind,ind2)],"ResidualsTran4")
+
+
+ggplot(melt_RegResid,aes(x = value, y = ResidualsTran4)) +
+geom_point() +
+facet_wrap(~ variable, scales = "free") +
+theme_bw()
+```
+```{r, echo=FALSE}
+ind=which(names(Data)%in%names(ModelTran4$coefficients))
+ind2=which(names(Data)=="StudResTran4")
+melt_StudResid=melt(Data[c(ind,ind2)],"StudResTran4")
+ggplot(melt_StudResid,aes(x = value, y = StudResTran4)) +
+geom_point() +
+facet_wrap(~ variable, scales = "free") +
+theme_bw()+
+labs(y="Studentized Residuals")
+```
+
+     iv. **[5 pts]** Present the estimate table for the model you recommend. 
+```{r, echo=FALSE}
+
+summ=summary(ModelTran4)$coefficients
+
+Tab=as.data.frame(cbind(summ[,1],exp(summ[,1]),(exp(summ[,1])-1)*100,summ[,2:4]))
+
+library(kableExtra)
+names(Tab)[1:3]=c("Coefficient","exp(Coefficient)","(exp(Coeff)-1)*100")
+knitr::kable(round(Tab,3))
+```
+
+*   For one percent increase in the log residual sugar, we expect alcohol to increase by .122% on average, holding everything else constant
+
+*   For one percent increase in the log sulphates, we expect alcohol to increase by .091% on average, holding everything else constant
+
+*   For one percent increase in the log total sulfur dioxide, we expect alcohol to decrease by .012% on average, holding everything else constant
+
+*   For one percent increase in the log chlorides, we expect alcohol to decrease by .009% on average, holding everything else constant. However, I would not recommend using the log for chlorides, because it did not improved in the Residuals vs Regressors plot, and the variable became not significant at the .05 level.
